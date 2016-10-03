@@ -23,8 +23,8 @@ module.exports = class QueryRunner extends FancyReplier
           ]
           text: ""
         )
-      error = (error) =>
-        @reply(":warning: #{error}")
+      error = (error, context) =>
+        @reply(":warning: *#{context}* #{error}")
       @replyContext.looker.storeBlob(imageData, success, error)
     else
       @reply(":warning: No storage is configured for visualization images in the bot configuration.")
@@ -52,8 +52,9 @@ module.exports = class QueryRunner extends FancyReplier
 
     renderField = (f, row) =>
       d = row[f.name]
-      if d.drilldown_uri && (f.is_measure || f.measure)
-        "<#{@replyContext.looker.url}#{d.drilldown_uri}|#{renderString(d)}>"
+      drill = d.links?[0]
+      if drill && drill.type == "measure_default"
+        "<#{@replyContext.looker.url}#{drill.url}|#{renderString(d)}>"
       else if d? && d.value != null
         renderString(d)
       else

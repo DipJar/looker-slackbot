@@ -2,6 +2,8 @@
 
 Lookerbot for [Slack](http://slack.com) integrates with [Looker](http://looker.com) to allow you to query all of your data directly from Slack. This enables everyone in your company to share data easily and answer data-driven questions instantly. Lookerbot expands Looker URLs in channels and allows you to create custom commands for running saved queries.
 
+[![](doc/readme-video-thumb.png)](https://vimeo.com/159130949)
+
 > For a free trial of Looker go to [looker.com/free-trial](http://looker.com/free-trial).
 
 ### Features
@@ -11,10 +13,13 @@ Detailed information on how to interact with Lookerbot [can be found on Looker D
 ### Requirements
 
 - [Looker](http://looker.com) 3.42 or later
+  - The "PDF Download & Scheduling and Scheduled Visualizations" Labs feature in Looker must be enabled to display chart images
 - A server capable of running [Node.js](https://nodejs.org/en/) to deploy the bot application to
-- (optional) To display chart images:
-  - An [Amazon S3](https://aws.amazon.com/s3/) bucket and access keys
-  - The **PDF Download & Scheduling and Scheduled Visualizations** Labs feature in Looker must be enabled
+- (optional) To display chart images, credentials for a supported storage service:
+  - [Amazon S3](https://aws.amazon.com/s3/) account, bucket, and access keys
+    - [Documentation](http://docs.aws.amazon.com/AmazonS3/latest/gsg/CreatingABucket.html)
+  - [Microsoft Azure Storage](https://azure.microsoft.com/en-us/services/storage/) account and access key
+      - [Documentation](https://azure.microsoft.com/en-us/documentation/articles/storage-introduction/) 
 
 ### Deployment
 
@@ -30,7 +35,9 @@ Detailed information on how to interact with Lookerbot [can be found on Looker D
 
 [![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/looker/looker-slackbot/tree/master)
 
-The quickest way to deploy the bot is to use Heroku's one-click deploy button, which will provision a server for your bot.
+The quickest way to deploy the bot is to use Heroku's one-click deploy button, which will provision a server for your bot. This will also allow you to configure all of the required variables.
+
+Once deployed, the bot should be ready to go! You can also optionally [configure slash commands](#configuring-slash-commands).
 
 #### Manual Deployment
 
@@ -50,6 +57,12 @@ The bot is configured entirely via environment variables. You'll want to set up 
 
 - `LOOKER_CUSTOM_COMMAND_SPACE_ID` (optional) – The ID of a Space that you would like the bot to use to define custom commands. [Read about using custom commands on Looker Discourse](https://discourse.looker.com/t/2302).
 
+- `SLACK_SLASH_COMMAND_TOKEN` (optional) – If you want to use slash commands with the Slack bot, provide the verification token from the slash command setup page so that the bot can verify the integrity of incoming slash commands.
+
+- `PORT` (optional) – The port that the bot web server will run on to accept slash commands. Defaults to `3333`.
+
+###### (optional) Amazon S3 Image Storage
+
 - `SLACKBOT_S3_BUCKET` (optional) – If you want to use the Slack bot to post visualization images, provide an Amazon S3 bucket name.
 
 - `SLACKBOT_S3_BUCKET_REGION` (optional) – If you want to use the Slack bot to post visualization images, provide an Amazon S3 bucket region. Defaults to `us-east-1`.
@@ -58,11 +71,23 @@ The bot is configured entirely via environment variables. You'll want to set up 
 
 - `AWS_SECRET_ACCESS_KEY` (optional) – If you want to use the Slack bot to post visualization images, provide an Amazon S3 secret access key that can write to the provided bucket.
 
-- `SLACK_SLASH_COMMAND_TOKEN` (optional) – If you want to use slash commands with the Slack bot, provide the verification token from the slash command setup page so that the bot can verify the integrity of incoming slash commands.
+###### (optional) Azure Image Storage
 
-- `PORT` (optional) – The port that the bot web server will run on to accept slash commands. Defaults to `3333`.
+- `AZURE_STORAGE_ACCOUNT` (optional) - If you want to use Microsoft Azure Storage to store visualization images posted by the Slack bot, provide the name of your Azure Storage account.
+
+- `SLACKBOT_AZURE_CONTAINER` (optional) - If you want to use Microsoft Azure Storage to store visualization images posted by the Slack bot, provide the name of the container within your Azure Storage account that you wish to use.
+
+- `AZURE_STORAGE_ACCESS_KEY` (optional) - If using Microsoft Azure Storage to store visualization images posted by the Slack bot, provide an access key that can write to the provided Azure Storage account and container.
 
 If you'd like to put these configurations on the filesystem, you can place them in a `.env` file at the root of the project and start the bot using node-foreman [as described below](#running-locally-for-development).
+
+##### Self-signed or invalid certificates
+
+If your Looker instance uses a self-signed certificate, Lookerbot will refuse to connect to it by default.
+
+Setting the `NODE_TLS_REJECT_UNAUTHORIZED` environment variable to `0` will instruct Lookerbot to accept connections with invalid certificates. Please ensure you have thouroughly evaluated the security implications of this action for your infrastructure before setting this variable.
+
+This should only impact on-premise deployments of Looker. Do not set this environment variable if Looker hosts your instance.
 
 ##### Connecting the bot to multiple Looker instances
 
@@ -90,7 +115,7 @@ To run the server:
 
 1. Ensure Node.js is installed
 2. `npm install` to install dependencies
-3. `npm start` to start the bot server. The server will run until you type `Crl+C` to stop it.
+3. `npm start` to start the bot server. The server will run until you type `Ctrl+C` to stop it.
 
 The included `Procfile` will also allow you to run the app using [foreman](https://github.com/ddollar/foreman) or [node-foreman](https://github.com/jeffjewiss/node-foreman). These libraries also provide easy ways of creating scripts for use with `upstart`, `supervisord`, and `systemd`.
 
@@ -110,6 +135,8 @@ However, Slash commands are a bit friendlier to use and allow Slack to auto-comp
 4. Choose an icon for the slash command responses. [Here's the icon we use](looker-bot-icon-512.png).
 5. Set the URL to wherever you have your bot server hosted. The path to the slash command endpoint is `/slack/receive`, so if your bot is hosted at `https://example.com`, the URL would be `https://example.com/slack/receive`.
 6. You'll need to copy the token provided when you created the slash command and set the `SLACK_SLASH_COMMAND_TOKEN` variable with it for the bot to accept slash commands.
+
+Directions for creating slash commands [can be found in Looker Discourse](https://discourse.looker.com/t/using-lookerbot-for-slack/2302)
 
 ### Data Access
 
