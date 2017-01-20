@@ -16,6 +16,8 @@ QueryRunner = require('./repliers/query_runner')
 LookQueryRunner = require('./repliers/look_query_runner')
 
 versionChecker = require('./version_checker')
+ScheduleReceiver = require('./schedule_receiver')
+DataActionReceiver = require('./data_action_receiver')
 
 if process.env.DEV == "true"
   # Allow communicating with Lookers running on localhost with self-signed certificates
@@ -36,6 +38,7 @@ else
     clientId: process.env.LOOKER_API_3_CLIENT_ID
     clientSecret: process.env.LOOKER_API_3_CLIENT_SECRET
     customCommandSpaceId: process.env.LOOKER_CUSTOM_COMMAND_SPACE_ID
+    webhookToken: process.env.LOOKER_WEBHOOK_TOKEN
   }]
 
 lookers = lookerConfig.map((looker) ->
@@ -110,8 +113,9 @@ lookers = lookerConfig.map((looker) ->
 
           command.helptext = ""
 
-          if dashboard.filters?.length > 0
-            command.helptext = "<#{dashboard.filters[0].title.toLowerCase()}>"
+          dashboard_filters = dashboard.dashboard_filters || dashboard.filters
+          if dashboard_filters?.length > 0
+            command.helptext = "<#{dashboard_filters[0].title.toLowerCase()}>"
 
           customCommands[command.name] = command
 
@@ -161,9 +165,6 @@ controller = Botkit.slackbot(
   debug: process.env.DEBUG_MODE == "true"
 )
 
-controller.setupWebserver process.env.PORT || 3333, (err, expressWebserver) ->
-  controller.createWebhookEndpoints(expressWebserver)
-
 defaultBot = controller.spawn({
   token: process.env.SLACK_API_KEY,
   retry: 10,
@@ -178,6 +179,11 @@ defaultBot.api.team.info {}, (err, response) ->
     )
   else
     throw new Error("Could not connect to the Slack API.")
+
+controller.setupWebserver process.env.PORT || 3333, (err, expressWebserver) ->
+  controller.createWebhookEndpoints(expressWebserver)
+  ScheduleReceiver.listen(expressWebserver, defaultBot, lookers)
+  DataActionReceiver.listen(expressWebserver, defaultBot, lookers)
 
 controller.on 'rtm_reconnect_failed', ->
   throw new Error("Failed to reconnect to the Slack RTM API.")
@@ -221,13 +227,15 @@ processCommand = (bot, message, isDM = false) ->
     matchedCommand = shortCommands.filter((c) -> message.text.toLowerCase().indexOf(c.name) == 0)?[0]
     if matchedCommand
 
+      dashboard = matchedCommand.dashboard
       query = message.text[matchedCommand.name.length..].trim()
       message.text.toLowerCase().indexOf(matchedCommand.name)
 
       context.looker = matchedCommand.looker
 
       filters = {}
-      for filter in matchedCommand.dashboard.filters
+      dashboard_filters = dashboard.dashboard_filters || dashboard.filters
+      for filter in dashboard_filters
         filters[filter.name] = query
       runner = new DashboardQueryRunner(context, matchedCommand.dashboard, filters)
       runner.start()
@@ -326,6 +334,8 @@ find = (context, message) ->
 
 checkMessage = (bot, message) ->
   return if !message.text || message.subtype == "bot_message"
+
+  return unless process.env.LOOKER_SLACKBOT_EXPAND_URLS == "true"
 
   # URL Expansion
   for url in getUrls(message.text).map((url) -> url.replace("%3E", ""))
