@@ -3,7 +3,9 @@ FancyReplier = require('./fancy_replier')
 
 module.exports = class QueryRunner extends FancyReplier
 
-  constructor: (@replyContext, @querySlug) ->
+  constructor: (@replyContext, queryParam) ->
+    @querySlug = queryParam?.slug
+    @queryId = queryParam?.id
     super @replyContext
 
   showShareUrl: -> false
@@ -22,6 +24,7 @@ module.exports = class QueryRunner extends FancyReplier
 
   postImage: (query, imageData, options = {}) ->
     if @replyContext.looker.storeBlob
+
       success = (url) =>
         @reply(
           attachments: [
@@ -34,9 +37,15 @@ module.exports = class QueryRunner extends FancyReplier
           ]
           text: ""
         )
+
       error = (error, context) =>
         @reply(":warning: *#{context}* #{error}")
-      @replyContext.looker.storeBlob(imageData, success, error)
+
+      if imageData.length
+        @replyContext.looker.storeBlob(imageData, success, error)
+      else
+        error("No image data returned for query.", "Looker Render Error")
+
     else
       @reply(":warning: No storage is configured for visualization images in the bot configuration.")
 
@@ -117,13 +126,24 @@ module.exports = class QueryRunner extends FancyReplier
       @reply(attachments: [attachment], text: if @showShareUrl() then shareUrl else "")
 
   work: ->
-    @replyContext.looker.client.get(
-      "queries/slug/#{@querySlug}"
-      (query) => @runQuery(query)
-      (r) => @replyError(r)
-      {}
-      @replyContext
-    )
+    if @querySlug
+      @replyContext.looker.client.get(
+        "queries/slug/#{@querySlug}"
+        (query) => @runQuery(query)
+        (r) => @replyError(r)
+        {}
+        @replyContext
+      )
+    else if @queryId
+      @replyContext.looker.client.get(
+        "queries/#{@queryId}"
+        (query) => @runQuery(query)
+        (r) => @replyError(r)
+        {}
+        @replyContext
+      )
+    else
+      throw "Must set slug or id when creating QueryRunner, or override work"
 
   runQuery: (query, options = {}) ->
     type = query.vis_config?.type || "table"
